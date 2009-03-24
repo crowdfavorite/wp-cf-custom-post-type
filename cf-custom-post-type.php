@@ -65,7 +65,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		global $custom_post_types, $custom_posts_parent_cat;
 		
 		// Special Category ID
-		$custom_posts_parent_cat = apply_filters('custom_post_type_parent_cat',get_option('cfcpt_parent_cat'));
+		$custom_posts_parent_cat = get_option('cfcpt_parent_cat');
 
 		// Allowed custom post types
 		$custom_post_types = apply_filters('custom_post_types',array(
