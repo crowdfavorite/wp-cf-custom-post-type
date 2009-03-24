@@ -13,8 +13,6 @@ Author URI: http://crowdfavorite.com
 
 ** Not tested on WP < 2.7 **
 
-@TODO: add category remove method
-
 This plugin serves the purpose of assigning posts a custom post type so that they can retain special content
 but not show up in the normal flow of WordPress content display. These posts are retained for conditional
 display at the discretion of the template designer.
@@ -29,23 +27,6 @@ allow these posts to be edited as well as display the relationship of category t
 are all managed from a new menu item in the Posts section of the Admin menu named Custom Posts.
 */
 
-// Debug
-	// save & show all queries
-	if(defined('CF_QUERY_DEBUG') && CF_QUERY_DEBUG) {
-		define('SAVEQUERIES',false);
-		add_action('wp_footer','cf_saved_queries_output');
-		add_action('admin_footer','cf_saved_queries_output');
-		function cf_saved_queries_output() {
-			global $wpdb;
-			if(defined('SAVEQUERIES') && SAVEQUERIES) {
-				echo '<ul style="text-align: left; font-size: 12px; list-style: disc outside; padding-left: 15px; margin-left: 10px">';
-				foreach($wpdb->queries as $query) {
-					echo '<li style="margin-bottom: 10px;">'.$query[0].'</li>';
-				}
-				echo '</ul>';
-			}
-		}
-	}
 
 // Init/Setup
 
@@ -72,6 +53,42 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			'post-welcome' => 'Welcome',
 			'post-learn-more' => 'Learn More'
 		));
+		
+		// handle individual post creation
+		if(isset($_GET['create']) && isset($_GET['create_in'])) {
+			cfcpt_create_individual_post(strip_tags($_GET['create']),intval($_GET['create_in']));
+			wp_redirect('edit.php?page=cf-custom-posts');
+			exit;
+		}
+		
+		// handle conversion of old post type structure
+		if(current_user_can('edit_users') && isset($_GET['convert_old_posts'])) {
+			cfcpt_convert_old_posts();
+		}
+	}
+
+// function to convert old, tagged, posts to new, post-type, posts. Becomes obsolete after OC conversion
+
+	function cfcpt_convert_old_posts() {
+		// for the ease of accuracy we'll do this in two passes
+		// one for learn-more, one for welcome
+
+		// learn more
+		$args = array(
+			'showposts' => -1,
+			'tag' => 'learn-more'
+		);
+		$learn_posts = new WP_Query($args);
+		foreach($learn_posts->posts as $p) {
+			cfcpt_update_post($p->ID,'post-learn-more');
+		}
+		
+		// welcome
+		$args['tag'] = 'welcome';
+		$welcome_posts = new WP_Query($args);
+		foreach($welcome_posts->posts as $p) {
+			cfcpt_update_post($p->ID,'post-welcome');
+		}
 	}
 
 // show appropriate post at head
@@ -144,7 +161,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 *	- add handler to post edit so custom post types can be edited
 	 */
 	function cfcpt_admin_init() {
-		global $custom_post_types, $custom_posts_parent_cat, $post, $pagenow;
+		global $custom_post_types, $custom_posts_parent_cat, $post, $pagenow, $page_vars;
 		
 		// post handler for adding cats and editing parent selection
 		if(strtolower($_SERVER['REQUEST_METHOD']) == 'post' && isset($_POST['cfcpt_action'])) {
@@ -158,8 +175,17 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			}
 		}
 		
-		// add our special management page
-		add_submenu_page('edit.php','Custom Posts','Custom Posts','10','cf-custom-posts','cfcpt_list_page');
+		// set filter configurable page text items
+		$page_vars = apply_filters('cfcpt_admin_page_vars',array(
+			'page_name' => $page_name,
+			'page_description' => '<p>This is the admin page for adding special categories with hidden informational posts.</p>',
+			'new_category_link' => 'Add new special category',
+			'new_category_name_label' => 'Name:',
+			'new_category_description_label' => 'Description',
+			'category_table_header' => 'Category'
+		));
+		
+		add_submenu_page('edit.php',$page_vars['page_name'],$page_vars['page_name'],'10','cf-custom-posts','cfcpt_list_page');
 		wp_enqueue_script('jquery');
 		
 		// only worry about the rest when editing posts
@@ -201,9 +227,22 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		global $wpdb;
 		if(isset($_POST['cfcpt'])) {
 			$post_type = get_post_meta($post_id,'_post_type',true);
-			$query = "UPDATE {$wpdb->posts} SET post_type = '{$post_type}' WHERE ID = '{$post_id}'";
-			$wpdb->query($query);
+			//$query = "UPDATE {$wpdb->posts} SET post_type = '{$post_type}' WHERE ID = '{$post_id}'";
+			//$wpdb->query($query);
+			cfcpt_update_post($post_id,$post_type);
 		}
+	}
+	
+	/**
+	 * Update a post with a different post type
+	 *
+	 * @param int $post_id 
+	 * @param string $type 
+	 */
+	function cfcpt_update_post($post_id,$post_type) {
+		global $wpdb;
+		$query = "UPDATE {$wpdb->posts} SET post_type = '{$post_type}' WHERE ID = '{$post_id}'";
+		return $wpdb->query($query);
 	}
 
 
@@ -251,37 +290,38 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * Show the special category admin page
 	 */
 	function cfcpt_list_page() {
-		global $custom_posts_parent_cat,$custom_post_types,$wpdb;
+		global $custom_posts_parent_cat, $custom_post_types, $wpdb, $page_vars;
 		
 		// grab our parent category info
 		$parent_cat = get_category($custom_posts_parent_cat);
 
 		// grab the special categories
 		$cats = get_categories(array(
-					//'child_of' => $custom_posts_parent_cat,
 					'child_of' => $parent_cat->cat_ID,
 					'hide_empty' => false
 				));
 		$urlbase = trailingslashit(get_bloginfo('wpurl')).'wp-admin/';
 		$categories_admin = $urlbase.'categories.php';
 		
+		extract($page_vars);
+		
 		echo '
-			<div class="wrap">
-				<h2>Custom Posts</h2>
-				<p>This is the admin page for adding special categories with hidden informational posts.<p>
+			<div class="wrap cf-custom-posts">
+				<h2>'.$page_name.'</h2>
+				'.$page_description.'
 			';
 		if(current_user_can('manage_categories')) {
 			echo '
-				<p><a id="new-cat-toggle" href="#">Add new special category</a></p>
+				<p><a id="new-cat-toggle" href="#">'.$new_category_link.'</a></p>
 				<form method="post" action="" id="new-special-cat" style="display: none">
 					<fieldset>
 						<div>
-							<label for="new_special_cat_name">Name:</label>
-							<input name="cat_name" id="new_special_cat_name" value="" />
+							<label for="new_special_cat_name">'.$new_category_name_label.'</label><br />
+							<input name="cat_name" id="new_special_cat_name" size="50" value="" />
 						</div>
 						<div>
-							<label for="new_special_cat_desc">Description:</label>
-							<textarea name="category_description" id="new_special_cat_desc"></textarea>
+							<label for="new_special_cat_desc">'.$new_category_description_label.'</label><br />
+							<textarea name="category_description" id="new_special_cat_desc" rows="5" cols="50"></textarea>
 						</div> 
 						<input type="hidden" name="category_parent" value="'.$parent_cat->cat_ID.'" />
 						<input type="hidden" name="cfcpt_action" value="new-cat" />
@@ -291,10 +331,10 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 				';
 		}
 		echo '
-				<table class="widefat post fixed">
+				<table class="widefat post fixed cfcpt">
 					<thead>
-						<tr>
-							<th>Category</th>';
+						<tr class="thead">
+							<th>'.$category_table_header.'</th>';
 		foreach($custom_post_types as $type => $name) {
 			echo '
 							<th class="col-'.$type.'">'.$name.'</th>';
@@ -305,6 +345,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 					<tbody>
 			';
 		if(count($cats)) {
+			$i = 0;
 			foreach($cats as $cat) {
 				// output row
 				echo '
@@ -329,7 +370,8 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 					}
 					else {
 						echo '
-								<b>post removed?</b>
+								<b class="no-post-type">post removed?</b> <a href="'.
+								$urlbase.'edit.php?page=cf-custom-posts&create='.$type.'&create_in='.$cat->term_id.'">Create Post</a>
 							';
 					}
 					echo '</td>'; // add &nbsp; in case post is empty the cell still gets layout
@@ -354,7 +396,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		if(current_user_can('edit_users')) {
 			echo '
 				<p><small><a href="#" id="parent-cat-edit-toggle">Edit Parent Category</a></small></p>
-				<form method="post" action="" id="special-cat-parent" style="display: none;">
+				<form method="post" action="" id="special-cat-parent" style="display: none; margin-top: 10px">
 					<fieldset>
 						<div>
 							<label for="special_cat_parent_select">Parent Category</label>
@@ -379,8 +421,10 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 							else {
 								link_toggle = jQuery("#new-cat-toggle");
 							}
-							link_toggle.slideToggle();
-							jQuery("#new-special-cat").slideToggle();
+							// show/hide
+							jQuery("#new-special-cat").slideToggle("normal",function() {
+								link_toggle.parents("p").slideToggle();
+							});
 							return false;
 						});
 						// parent cat form toggle
@@ -391,8 +435,10 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 							else {
 								link_toggle = jQuery("#parent-cat-edit-toggle");
 							}
-							link_toggle.slideToggle();
-							jQuery("#special-cat-parent").slideToggle();
+							// show/hide
+							jQuery("#special-cat-parent").slideToggle("normal",function(){
+								link_toggle.parents("p").slideToggle();
+							});
 							return false;
 						});
 					});
@@ -453,27 +499,44 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 
 		$category = get_category($term_id);
 		if($category->category_parent == $custom_posts_parent_cat) {
-			$parent = get_category($category->category_parent);
-			// create relevant posts
-			$dummy_post = array(
-				'post_content' => '!! replace me',
-				'post_title' => $category->name.': ',
-				'post_status' => 'draft',
-				'post_name' => $category->name.'-',
-				'comment_status' => 'closed',
-				'ping_status' => 'closed',
-				'post_type' => '',
-				'post_category' => array($term_id)
-			);
 			foreach($custom_post_types as $type => $name) {
-				$p = $dummy_post;
-				$p['post_content'] = 'This is the <b>'.$name.' post</b> in category <b>"'.$category->name.'"</b>. Please change this content.';
-				$p['post_type'] = $type;
-				$p['post_name'] .= $type;
-				$p['post_title'] .= $name;
-				$p['post_tags'] = $type;
-				wp_insert_post($p);
+				cfcpt_insert_post($type,$name,$category);
 			}
 		}
 	}
+
+	/**
+	 * Insert a single post of a single type
+	 *
+	 * @param string $type 
+	 * @param int $cat_id 
+	 */
+	function cfcpt_create_individual_post($type,$cat_id) {
+		global $custom_post_types;
+		
+		$category = get_category($cat_id);		
+		cfcpt_insert_post($type,$custom_post_types[$type],$category);		
+	}
+	
+	/**
+	 * Create a special post with specified parameters
+	 *
+	 * @param string $type
+	 * @param string $name
+	 * @param object $category 
+	 */
+	function cfcpt_insert_post($type,$name,$category) {
+		$post = array(
+			'post_content' => 'This is the <b>'.$name.' post</b> in category <b>"'.$category->name.'"</b>. Please change this content.',
+			'post_title' => $category->name.' - '.$name,
+			'post_status' => 'draft',
+			'post_name' => $category->name.'-'.$type,
+			'comment_status' => 'closed',
+			'ping_status' => 'closed',
+			'post_type' => $type,
+			'post_category' => array($category->cat_ID)
+		);
+		wp_insert_post($post);		
+	}
+	
 ?>
