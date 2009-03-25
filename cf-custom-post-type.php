@@ -12,6 +12,7 @@ Author URI: http://crowdfavorite.com
 ## Long Description
 
 ** Not tested on WP < 2.7 **
+** adding more post-types not yet tested **
 
 This plugin serves the purpose of assigning posts a custom post type so that they can retain special content
 but not show up in the normal flow of WordPress content display. These posts are retained for conditional
@@ -201,7 +202,31 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			add_action('edit_form_advanced','cfcpt_meta_box');
 		}
 	}
+	
+// Clear out post edit screen of un-needed items
 
+	/**
+	 * Remove all but the essential meta boxes
+	 */
+	function cfcpt_clear_meta_boxes() {
+		global $wp_meta_boxes;		
+		$allowed_boxes = apply_filters('cfcpt_allowed_meta_boxes',array(
+			'submitdiv',
+			'tagsdiv',
+			'postexcerpt',
+			'revisionsdiv'
+		));
+		foreach($wp_meta_boxes['post'] as $group_id => $group) {
+			foreach($group as $priority_id => $priority) {				
+				foreach($priority as $id => $box) {
+					if(!in_array($id, $allowed_boxes)) {
+						unset($wp_meta_boxes['post'][$group_id][$priority_id][$id]);
+					}
+				}
+			}
+		}
+	}
+	add_action('admin_head','cfcpt_clear_meta_boxes',9999);
 
 // Save Post
 	
@@ -227,8 +252,6 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		global $wpdb;
 		if(isset($_POST['cfcpt'])) {
 			$post_type = get_post_meta($post_id,'_post_type',true);
-			//$query = "UPDATE {$wpdb->posts} SET post_type = '{$post_type}' WHERE ID = '{$post_id}'";
-			//$wpdb->query($query);
 			cfcpt_update_post($post_id,$post_type);
 		}
 	}
@@ -536,7 +559,8 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			'post_type' => $type,
 			'post_category' => array($category->cat_ID)
 		);
-		wp_insert_post($post);		
+		$post_id = wp_insert_post($post);		
+		update_post_meta($post_id,'_post_type',$type);
 	}
 	
 ?>
