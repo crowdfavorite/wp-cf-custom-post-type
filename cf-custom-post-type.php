@@ -44,13 +44,13 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * 	- welcome for logged in users
 	 */
 	function cfcpt_init() {
-		global $custom_post_types, $custom_posts_parent_cat;
+		global $cfcpt_post_types, $cfcpt_parent_cat;
 		
 		// Special Category ID
-		$custom_posts_parent_cat = get_option('cfcpt_parent_cat');
+		$cfcpt_parent_cat = get_option('cfcpt_parent_cat');
 
 		// Allowed custom post types
-		$custom_post_types = apply_filters('custom_post_types',array(
+		$cfcpt_post_types = apply_filters('custom_post_types',array(
 			'post-welcome' => 'Welcome',
 			'post-learn-more' => 'Learn More'
 		));
@@ -66,6 +66,19 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		if(current_user_can('edit_users') && isset($_GET['convert_old_posts'])) {
 			cfcpt_convert_old_posts();
 		}
+	}
+	
+// Helpers
+	
+	/**
+	 * Accessor function to get the custom post types
+	 * Should be used by outside plugins/actions to get the custom post types
+	 *
+	 * @return array
+	 */
+	function cfcpt_get_types() {
+		global $cfcpt_post_types;
+		return $cfcpt_post_types;
 	}
 
 // function to convert old, tagged, posts to new, post-type, posts. Becomes obsolete after OC conversion
@@ -162,7 +175,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 *	- add handler to post edit so custom post types can be edited
 	 */
 	function cfcpt_admin_init() {
-		global $custom_post_types, $custom_posts_parent_cat, $post, $pagenow, $page_vars;
+		global $cfcpt_post_types, $cfcpt_parent_cat, $post, $pagenow, $page_vars;
 		
 		// post handler for adding cats and editing parent selection
 		if(strtolower($_SERVER['REQUEST_METHOD']) == 'post' && isset($_POST['cfcpt_action'])) {
@@ -193,7 +206,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		if($pagenow != 'post.php' || !isset($_GET['post'])) { return; }
 		
 		$post = get_post($_GET['post']);
-		if(array_key_exists($post->post_type, $custom_post_types)) {
+		if(array_key_exists($post->post_type, $cfcpt_post_types)) {
 			// make sure we have a placeholder post_type
 			update_post_meta($post->ID,'_post_type',$post->post_type);
 			// update for editing
@@ -313,10 +326,10 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * Show the special category admin page
 	 */
 	function cfcpt_list_page() {
-		global $custom_posts_parent_cat, $custom_post_types, $wpdb, $page_vars;
+		global $cfcpt_parent_cat, $cfcpt_post_types, $wpdb, $page_vars;
 		
 		// grab our parent category info
-		$parent_cat = get_category($custom_posts_parent_cat);
+		$parent_cat = get_category($cfcpt_parent_cat);
 
 		// grab the special categories
 		$cats = get_categories(array(
@@ -358,7 +371,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 					<thead>
 						<tr class="thead">
 							<th>'.$category_table_header.'</th>';
-		foreach($custom_post_types as $type => $name) {
+		foreach($cfcpt_post_types as $type => $name) {
 			echo '
 							<th class="col-'.$type.'">'.$name.'</th>';
 		}
@@ -377,7 +390,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 								$categories_admin.'?action=edit&amp;cat_ID='.$cat->cat_ID.'">'.$cat->name.'</a></b></td>
 								';	
 				// link to each custom post					
-				foreach($custom_post_types as $type => $name) {
+				foreach($cfcpt_post_types as $type => $name) {
 					echo '<td>';
 					$post = get_posts(array(
 								'cat' => $cat->term_id,
@@ -406,7 +419,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		else {
 			echo '
 						<tr>
-							<td colspan="'.(count($custom_post_types)+1).'">
+							<td colspan="'.(count($cfcpt_post_types)+1).'">
 								There are currently no special categories set up. <a href="'.$categories_admin.'">Click here</a> to add special categories.
 							</td>
 						</tr>
@@ -479,7 +492,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 */
 	function cfcpt_query_filter() {
 		if(!is_admin()) {
-			add_filter('posts_where_request','custom_post_type_parse_query_filter');
+			add_filter('posts_where_request','cfcpt_parse_query_filter');
 		}
 	}
 
@@ -490,12 +503,12 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * @param string $where 
 	 * @return string
 	 */
-	function custom_post_type_parse_query_filter($where) {
-		global $wpdb, $custom_post_types;
+	function cfcpt_parse_query_filter($where) {
+		global $wpdb, $cfcpt_post_types;
 				
 		// build exclude list
 		$post_type_exclude = array();
-		foreach($custom_post_types AS $type => $name) {
+		foreach($cfcpt_post_types AS $type => $name) {
 			$post_type_exclude[] = $wpdb->posts.".post_type != '{$type}'";
 		}
 
@@ -518,11 +531,11 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * @param int $term_taxonomy_id 
 	 */
 	function cfcpt_create_category_handler($term_id, $term_taxonomy_id) {
-		global $custom_posts_parent_cat, $custom_post_types;
+		global $cfcpt_parent_cat, $cfcpt_post_types;
 
 		$category = get_category($term_id);
-		if($category->category_parent == $custom_posts_parent_cat) {
-			foreach($custom_post_types as $type => $name) {
+		if($category->category_parent == $cfcpt_parent_cat) {
+			foreach($cfcpt_post_types as $type => $name) {
 				cfcpt_insert_post($type,$name,$category);
 			}
 		}
@@ -535,10 +548,10 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * @param int $cat_id 
 	 */
 	function cfcpt_create_individual_post($type,$cat_id) {
-		global $custom_post_types;
+		global $cfcpt_post_types;
 		
 		$category = get_category($cat_id);		
-		cfcpt_insert_post($type,$custom_post_types[$type],$category);		
+		cfcpt_insert_post($type,$cfcpt_post_types[$type],$category);		
 	}
 	
 	/**
