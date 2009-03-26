@@ -80,29 +80,53 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		global $cfcpt_post_types;
 		return $cfcpt_post_types;
 	}
-
-// function to convert old, tagged, posts to new, post-type, posts. Becomes obsolete after OC conversion
-
-	function cfcpt_convert_old_posts() {
-		// for the ease of accuracy we'll do this in two passes
-		// one for learn-more, one for welcome
-
-		// learn more
-		$args = array(
-			'showposts' => -1,
-			'tag' => 'learn-more'
-		);
-		$learn_posts = new WP_Query($args);
-		foreach($learn_posts->posts as $p) {
-			cfcpt_update_post($p->ID,'post-learn-more');
-		}
+	
+	/**
+	 * Get the Custom Posts parent category as an object
+	 *
+	 * @return object
+	 */
+	function cfcpt_get_parent_cat() {
+		global $cfcpt_parent_cat;
+		return get_category($cfcpt_parent_cat);
+	}
+	
+	/**
+	 * Get a list of all subcategories of our special parent category
+	 * Uses wp_cache to return a pre-pulled array
+	 * @return array
+	 */
+	function cfcpt_get_child_cats() {
+		global $blog_id;
+		$blog_id = !is_null($blog_id) ? $blog_id : 1;
 		
-		// welcome
-		$args['tag'] = 'welcome';
-		$welcome_posts = new WP_Query($args);
-		foreach($welcome_posts->posts as $p) {
-			cfcpt_update_post($p->ID,'post-welcome');
+		// attempt to pull from cache first
+		$child_cats = maybe_unserialize(wp_cache_get('cfcpt_child_cats_'.$blog_id));
+		if(is_array($child_cats)) { return $child_cats; }
+		
+		// build list of child cats
+		$parent = cfcpt_get_parent_cat();
+		$children = explode('/',get_category_children($parent->cat_ID));
+		$child_cats = array();
+		foreach($children as $child) {
+			if(empty($child)) { continue; }
+			$c = get_category($child);
+			$child_cats[$c->slug] = $c;
 		}
+		wp_cache_add('cfcpt_child_cats_'.$blog_id,$child_cats);
+		return $child_cats;
+	}
+	
+	/**
+	 * Quick function to check if a post is a custom post type
+	 *
+	 * @param object $post 
+	 * @return bool
+	 */
+	function cfcpt_is_custom_post($post) {
+		$types = cfcpt_get_types();
+		if(!is_object($post)) { $post = get_post($post); }
+		return array_key_exists($post->post_type, $types);
 	}
 
 // show appropriate post at head
@@ -129,7 +153,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	function cfcpt_the_post($post=false) {
 		if(!$post) { $post = cfcpt_get_post(); }
 		if(!is_null($post)) {
-			$post_content = apply_filters('the_post',$post->post_content);
+			$post_content = apply_filters('the_content',$post->post_content);
 			echo apply_filters('cfcpt_the_post',$post_content);
 		}
 	}
@@ -161,7 +185,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 					));			
 		}
 
-		return apply_filters('cfcpt_get_post',isset($p[0]) ? $p[0] : null);
+		return apply_filters('cfcpt_get_post',isset($p[0]) ? $p[0] : false);
 	}
 
 // Modify post_type for editing
@@ -226,7 +250,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$allowed_boxes = apply_filters('cfcpt_allowed_meta_boxes',array(
 			'submitdiv',
 			'tagsdiv',
-			'postexcerpt',
+			//'postexcerpt',
 			'revisionsdiv'
 		));
 		foreach($wp_meta_boxes['post'] as $group_id => $group) {
@@ -575,5 +599,28 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$post_id = wp_insert_post($post);		
 		update_post_meta($post_id,'_post_type',$type);
 	}
-	
+
+// function to convert old, tagged, posts to new, post-type, posts. Becomes obsolete after OC conversion
+
+	function cfcpt_convert_old_posts() {
+		// for the ease of accuracy we'll do this in two passes
+		// one for learn-more, one for welcome
+
+		// learn more
+		$args = array(
+			'showposts' => -1,
+			'tag' => 'learn-more'
+		);
+		$learn_posts = new WP_Query($args);
+		foreach($learn_posts->posts as $p) {
+			cfcpt_update_post($p->ID,'post-learn-more');
+		}
+
+		// welcome
+		$args['tag'] = 'welcome';
+		$welcome_posts = new WP_Query($args);
+		foreach($welcome_posts->posts as $p) {
+			cfcpt_update_post($p->ID,'post-welcome');
+		}
+	}
 ?>
