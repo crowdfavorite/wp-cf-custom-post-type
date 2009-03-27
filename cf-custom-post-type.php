@@ -47,10 +47,11 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		global $cfcpt_post_types, $cfcpt_parent_cat;
 		
 		// Special Category ID
-		$cfcpt_parent_cat = get_option('cfcpt_parent_cat');
-
+		//$cfcpt_parent_cat = get_option('cfcpt_parent_cat'); // enable if development resumes on dynamic parent cat assignment
+		$cfcpt_parent_cat = apply_filters('cfcpt_post_parents',array());
+		
 		// Allowed custom post types
-		$cfcpt_post_types = apply_filters('custom_post_types',array(
+		$cfcpt_post_types = apply_filters('cfcpt_post_types',array(
 			'post-welcome' => 'Welcome',
 			'post-learn-more' => 'Learn More'
 		));
@@ -82,18 +83,32 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	}
 	
 	/**
-	 * Get the Custom Posts parent category as an object
+	 * Get the Custom Posts parent categories as an array of objects
+	 * Uses wp_cache to return pre-pulled array if available
 	 *
 	 * @return object
 	 */
-	function cfcpt_get_parent_cat() {
-		global $cfcpt_parent_cat;
-		return get_category($cfcpt_parent_cat);
+	function cfcpt_get_parent_cats() {
+		global $cfcpt_parent_cat, $blog_id;
+		$blog_id = !is_null($blog_id) ? $blog_id : 1;
+		
+		$parent_cats = maybe_unserialize(wp_cache_get('cfcpt_parent_cats_'.$blog_id));
+		if(is_array($parent_cats)) { return $parent_cats; }
+		
+		if(!is_array($cfcpt_parent_cat)) { $cfcpt_parent_cat = array($cfcpt_parent_cat); }
+		$parent_cats = array();
+		foreach($cfcpt_parent_cat as $cat) {
+			$c = get_category($cat);
+			$parent_cats[$c->slug] = $c; 
+		}
+		wp_cache_add('cfcpt_parent_cats_'.$blog_id,$parent_cats);
+		return $parent_cats;
 	}
 	
 	/**
 	 * Get a list of all subcategories of our special parent category
-	 * Uses wp_cache to return a pre-pulled array
+	 * Uses wp_cache to return a pre-pulled array if available
+	 * @TODO - broken with new multiple parent cats
 	 * @return array
 	 */
 	function cfcpt_get_child_cats() {
@@ -105,13 +120,15 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		if(is_array($child_cats)) { return $child_cats; }
 		
 		// build list of child cats
-		$parent = cfcpt_get_parent_cat();
-		$children = explode('/',get_category_children($parent->cat_ID));
+		$parents = cfcpt_get_parent_cats();
 		$child_cats = array();
-		foreach($children as $child) {
-			if(empty($child)) { continue; }
-			$c = get_category($child);
-			$child_cats[$c->slug] = $c;
+		foreach($parents as $parent) {
+			$children = explode('/',get_category_children($parent->cat_ID));
+			foreach($children as $child) {
+				if(empty($child)) { continue; }
+				$c = get_category($child);
+				$child_cats[$parent->slug][$c->slug] = $c;
+			}
 		}
 		wp_cache_add('cfcpt_child_cats_'.$blog_id,$child_cats);
 		return $child_cats;
@@ -348,21 +365,13 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	
 	/**
 	 * Show the special category admin page
+	 * @TODO generalize javascipt for new sub-cat toggle
 	 */
 	function cfcpt_list_page() {
-		global $cfcpt_parent_cat, $cfcpt_post_types, $wpdb, $page_vars;
+		global $cfcpt_post_types, $wpdb, $page_vars;
 		
 		// grab our parent category info
-		$parent_cat = get_category($cfcpt_parent_cat);
-
-		// grab the special categories
-		$cats = get_categories(array(
-					'child_of' => $parent_cat->cat_ID,
-					'hide_empty' => false
-				));
-		$urlbase = trailingslashit(get_bloginfo('wpurl')).'wp-admin/';
-		$categories_admin = $urlbase.'categories.php';
-		
+		$parent_cats = cfcpt_get_parent_cats();		
 		extract($page_vars);
 		
 		echo '
@@ -370,9 +379,130 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 				<h2>'.$page_name.'</h2>
 				'.$page_description.'
 			';
+		foreach($parent_cats as $parent) {
+			cfcpt_cat_table($parent);
+		}
+		// dynamic parent editing purposefully disabled... maybe if we get time in the future it can be built out
+		if(current_user_can('edit_users') && isset($dynamic_parent_editing)) {
+			echo '
+				<p><small><a href="#" id="parent-cat-edit-toggle">Edit Parent Category</a></small></p>
+				<form method="post" action="" id="special-cat-parent" style="display: none; margin-top: 10px">
+					<fieldset>
+						<p><b>Notice:</b> This changes the parent category that custom posts are looked for in. If you change this on a site that is already set up then you are most likely going to break the site. The change is non-destructive, so you can change it back and restore the previous state. You shouldn&rsquo;t be changing this unless you REALLY know what you&rsquo;re up to.</p>
+						<div id="parent-cats-select-lists">';
+			$i = 0;
+			foreach($parent_cats as $key => $parent) {
+				echo cfcpt_parent_cat_select($parent,++$i);
+			}
+			echo '				
+						</div>
+						<p><a href="#" id="add_new_parent_select">Add New Parent Cat</a></p>
+						<input type="hidden" name="cfcpt_action" value="edit-parent" />
+						<p class="submit"><input type="submit" name="submit" value="Update" /> | <a id="cancel-parent-cat-edit" href="#">Cancel</a>
+					</fieldset>
+				</form>
+			';
+		}
+		echo '
+			</div>
+			<script type="text/javascript">
+				//<![CDATA[
+					jQuery(function() {
+						// new cat form toggle, needs to be general
+						jQuery("#new-cat-toggle,#cancel-new-special-cat").click(function(){
+							if(this.id == "new-cat-toggle") {
+								link_toggle = jQuery(this);
+							}
+							else {
+								link_toggle = jQuery("#new-cat-toggle");
+							}
+							// show/hide
+							jQuery("#new-special-cat").slideToggle("normal",function() {
+								link_toggle.parents("p").slideToggle();
+							});
+							return false;
+						});
+						
+						// parent cat form toggle, fine as is
+						jQuery("#parent-cat-edit-toggle,#cancel-parent-cat-edit").click(function(){
+							if(this.id == "parent-cat-edit-toggle") {
+								link_toggle = jQuery(this);
+							}
+							else {
+								link_toggle = jQuery("#parent-cat-edit-toggle");
+							}
+							// show/hide
+							jQuery("#special-cat-parent").slideToggle("normal",function(){
+								link_toggle.parents("p").slideToggle();
+							});
+							return false;
+						});
+					});
+				//]]>
+			</script>
+			';
+	}
+	
+	/**
+	 * Build a new select dropdown
+	 * Will build a new parent select dropdown
+	 * If a category object is passed in that object's cat_ID will be used to pre-select that category in the dropdown
+	 *
+	 * @param object $parent - optional, currently selected parent object 
+	 * @return html
+	 */
+	function cfcpt_parent_cat_select($parent=null,$i) {
+		$selected = null;
+		$args = array(
+			'hide_empty' => 0, 
+			'name' => 'category_parent[]', 
+			'orderby' => 'name', 
+			'hierarchical' => true, 
+			'show_option_none' => __('None'),
+			'echo' => 0
+		);
+		if(is_object($parent)) {
+			$args['selected'] = $parent->cat_ID; 
+			
+		}
+		return '<div id="parent-cat-'.$i.'"><label for="special_cat_parent_select">Parent Category '.$i.'</label>'.wp_dropdown_categories($args).'</div>';		
+	}
+	
+	/**
+	 * Return the HTML for a new parent cat select 
+	 *
+	 * @return void
+	 */
+	function cfcpt_get_new_parent_cat_select() {
+		$num = intval($_POST['new_num']);
+		echo urlencode(cfcpt_parent_cat_select(0,$num));
+		exit;
+	}
+	
+	/**
+	 * Show a table of child categories
+	 *
+	 * @param string $parent_cat 
+	 * @return void
+	 */
+	function cfcpt_cat_table($parent_cat) {
+		global $cfcpt_post_types, $page_vars;
+		
+		// grab the special categories
+		$cats = get_categories(array(
+					'child_of' => $parent_cat->cat_ID,
+					'hide_empty' => false
+				));
+		// prep
+		extract($page_vars);
+		$urlbase = trailingslashit(get_bloginfo('wpurl')).'wp-admin/';
+		$categories_admin = $urlbase.'categories.php';
+			
 		if(current_user_can('manage_categories')) {
 			echo '
-				<p><a id="new-cat-toggle" href="#">'.$new_category_link.'</a></p>
+				<br />
+				<h3>'.$parent_cat->name.'</h3>
+				<p><a id="new-cat-toggle" href="#">&raquo; '.$new_category_link.'</a></p>
 				<form method="post" action="" id="new-special-cat" style="display: none">
 					<fieldset>
 						<div>
@@ -452,59 +582,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		echo '
 					</tbody>
 				</table>
-			';
-		if(current_user_can('edit_users')) {
-			echo '
-				<p><small><a href="#" id="parent-cat-edit-toggle">Edit Parent Category</a></small></p>
-				<form method="post" action="" id="special-cat-parent" style="display: none; margin-top: 10px">
-					<fieldset>
-						<div>
-							<label for="special_cat_parent_select">Parent Category</label>
-							'.wp_dropdown_categories(array('hide_empty' => 0, 'name' => 'category_parent', 'orderby' => 'name', 'selected' => $parent_cat->cat_ID, 'hierarchical' => true, 'show_option_none' => __('None'),'echo' => 0)).'
-						</div>
-						<input type="hidden" name="cfcpt_action" value="edit-parent" />
-						<p class="submit"><input type="submit" name="submit" value="Update" /> | <a id="cancel-parent-cat-edit" href="#">Cancel</a>
-					</fieldset>
-				</form>
-			';
-		}
-		echo '
-			</div>
-			<script type="text/javascript">
-				//<![CDATA[
-					jQuery(function() {
-						// new cat form toggle
-						jQuery("#new-cat-toggle,#cancel-new-special-cat").click(function(){
-							if(this.id == "new-cat-toggle") {
-								link_toggle = jQuery(this);
-							}
-							else {
-								link_toggle = jQuery("#new-cat-toggle");
-							}
-							// show/hide
-							jQuery("#new-special-cat").slideToggle("normal",function() {
-								link_toggle.parents("p").slideToggle();
-							});
-							return false;
-						});
-						// parent cat form toggle
-						jQuery("#parent-cat-edit-toggle,#cancel-parent-cat-edit").click(function(){
-							if(this.id == "parent-cat-edit-toggle") {
-								link_toggle = jQuery(this);
-							}
-							else {
-								link_toggle = jQuery("#parent-cat-edit-toggle");
-							}
-							// show/hide
-							jQuery("#special-cat-parent").slideToggle("normal",function(){
-								link_toggle.parents("p").slideToggle();
-							});
-							return false;
-						});
-					});
-				//]]>
-			</script>
-			';
+			';		
 	}
 	
 // Query filter to prevent pull on front end
