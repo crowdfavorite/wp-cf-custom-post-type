@@ -99,7 +99,12 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$parent_cats = array();
 		foreach($cfcpt_parent_cat as $cat) {
 			$c = get_category($cat);
-			$parent_cats[$c->slug] = $c; 
+			if(!is_null($c)) {
+				$parent_cats[$c->slug] = $c; 
+			}
+			else {
+				$parent_cats['fail'] = $cat;
+			}
 		}
 		wp_cache_add('cfcpt_parent_cats_'.$blog_id,$parent_cats);
 		return $parent_cats;
@@ -363,6 +368,14 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		exit;	
 	}
 	
+	function cfcpt_missing_parent_cat($cat) {
+		echo '
+			<div class="updated fade below-h2" style="margin-bottom: 25px">
+				<p style="line-height: 1.3em;"><b>Missing Category:</b> A category that is defined as a parent category could not be retrieved by WordPress. This can happen if a parent category was renamed. If you have recently renamed one of the parent categories please return it to its previous name and contact support for updating this installation for the new desired parent category name.</p>
+			</div>
+			';
+	}
+	
 	/**
 	 * Show the special category admin page
 	 * @TODO generalize javascipt for new sub-cat toggle
@@ -376,12 +389,20 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		
 		echo '
 			<div class="wrap cf-custom-posts">
-				<h2>'.$page_name.'</h2>
-				'.$page_description.'
-			';
-		foreach($parent_cats as $parent) {
-			cfcpt_cat_table($parent);
+				<h2>'.$page_name.'</h2>';
+		
+		if(array_key_exists('fail', $parent_cats)) {
+			cfcpt_missing_parent_cat($parent_cats['fail']);
+			unset($parent_cats['fail']);	
 		}
+		
+		echo $page_description;
+		foreach($parent_cats as $slug => $parent) {
+			if($slug !== 'fail') {
+				cfcpt_cat_table($parent);
+			}
+		}
+		
 		// dynamic parent editing purposefully disabled... maybe if we get time in the future it can be built out
 		if(current_user_can('edit_users') && isset($dynamic_parent_editing)) {
 			echo '
