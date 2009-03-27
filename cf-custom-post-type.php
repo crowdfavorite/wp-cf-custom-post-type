@@ -259,6 +259,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			$post->post_type = 'post';
 			wp_cache_replace($post->ID,$post,'posts');
 			add_action('edit_form_advanced','cfcpt_meta_box');
+			add_action('admin_head','cfcpt_clear_meta_boxes',9999);
 		}
 	}
 	
@@ -285,7 +286,6 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			}
 		}
 	}
-	add_action('admin_head','cfcpt_clear_meta_boxes',9999);
 
 // Save Post
 	
