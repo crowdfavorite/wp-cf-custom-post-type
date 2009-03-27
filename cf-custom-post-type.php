@@ -267,13 +267,14 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 
 	/**
 	 * Remove all but the essential meta boxes
+	 * runs at 'admin_head'
 	 */
 	function cfcpt_clear_meta_boxes() {
 		global $wp_meta_boxes;		
 		$allowed_boxes = apply_filters('cfcpt_allowed_meta_boxes',array(
 			'submitdiv',
 			'tagsdiv',
-			//'postexcerpt',
+			'postexcerpt',
 			'revisionsdiv'
 		));
 		foreach($wp_meta_boxes['post'] as $group_id => $group) {
