@@ -537,7 +537,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 						</div> 
 						<input type="hidden" name="category_parent" value="'.$parent_cat->cat_ID.'" />
 						<input type="hidden" name="cfcpt_action" value="new-cat" />
-						<p class="submit"><input type="submit" name="submit" value="Add New" /> | <a id="cancel-new-special-cat" href="#">Cancel</a>
+						<p class="submit"><input type="submit" name="submit" value="Save New" /> | <a id="cancel-new-special-cat" href="#">Cancel</a>
 					</fieldset>
 				</form>
 				';
