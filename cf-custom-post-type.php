@@ -209,6 +209,43 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 
 		return apply_filters('cfcpt_get_post',isset($p[0]) ? $p[0] : false);
 	}
+	
+	function cfcpt_get_posts($type,$cat_id=null) {
+		global $cfcpt_parent_cat,$blog_id;
+		
+		// attempt to fetch cached item
+		$key = 'cfcpt_posts_'.$type.'_'.$cat_id.'_'.$blog_id;
+		$posts = maybe_unserialize(wp_cache_get($key));
+		if(is_array($posts)) { echo 'cached'; return $posts; }
+		
+		// base args
+		$args = array(
+			'showposts' => -1,
+			'post_status' => array('publish')			
+		);
+		
+		// add category filter, maybe do this a bit differently to accommodate comma separated values?
+		if(!is_null($cat_id)) {
+			if(in_array($cat_id, $cfcpt_parent_cat)) {
+				$args['cat'] = $cat_id;
+			}
+		}
+		else {
+			$args['cat'] = implode(',',$cfcpt_parent_cat);
+		}
+		
+		// add post-type filter
+		$types = cfcpt_get_types();
+		if($type !== false && array_key_exists($type, $types)) {
+			$args['post_type'] = $type;
+		}
+		else {
+			$args['post_type'] = array_keys($types);
+		}
+		$posts = get_posts($args);
+		wp_cache_add($key,$posts);
+		return $posts;
+	}
 
 // Modify post_type for editing
 
