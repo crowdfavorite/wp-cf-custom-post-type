@@ -195,7 +195,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 						'cat' => $cat->term_id,
 						'post_type' => 'post-welcome',
 						'limit' => 1,
-						'post_status' => array('publish','draft')
+						'post_status' => array('publish')
 					));
 		}
 		else {
@@ -203,7 +203,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 						'cat' => $cat->term_id,
 						'post_type' => 'post-learn-more',
 						'limit' => 1,
-						'post_status' => array('publish','draft')
+						'post_status' => array('publish')
 					));			
 		}
 
