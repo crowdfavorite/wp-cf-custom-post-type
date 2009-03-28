@@ -210,6 +210,14 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		return apply_filters('cfcpt_get_post',isset($p[0]) ? $p[0] : false);
 	}
 	
+	/**
+	 * Pull a list of posts by post type
+	 * Optionally limit the list to just a specific category
+	 *
+	 * @param string $type 
+	 * @param id $cat_id - optional, leave blank to grab all
+	 * @return array
+	 */
 	function cfcpt_get_posts($type,$cat_id=null) {
 		global $cfcpt_parent_cat,$blog_id;
 		
