@@ -36,7 +36,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	/**
 	 * Define our variables
 	 * Filters: 
-	 *	- custom_post_type_parent_cat: set the parent cat ID
+	 *	- custom_post_parents: set the parent cat IDs
 	 * 	- custom_post_types: modify the custom post types
 	 *
 	 * default chooses between a learn-more and welcome post
