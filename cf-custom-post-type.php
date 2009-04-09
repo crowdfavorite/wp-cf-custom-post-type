@@ -744,6 +744,27 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$post_id = wp_insert_post($post);		
 		update_post_meta($post_id,'_post_type',$type);
 	}
+	
+// permalink filters so any time a link is built to any of these posts it instead points to the category page
+
+	/**
+	 * Return a modified permalink to the posts category parent instead of the post itself
+	 *
+	 * @param string $permalink 
+	 * @param object $post 
+	 * @param bool $leavename 
+	 * @return void
+	 */
+	function cfcpt_fix_permalink($permalink,$post,$leavename) {
+		$types = cfcpt_get_types();
+		if(isset($post->post_type) && array_key_exists($post->post_type, $types)) {
+			// build permalink for the category page instead
+			$cat = get_the_category($post->ID);
+			$permalink = get_category_link($cat[0]->term_id);
+		}
+		return $permalink;
+	}
+	add_filter('post_link','cfcpt_fix_permalink',10,3);
 
 // function to convert old, tagged, posts to new, post-type, posts. Becomes obsolete after OC conversion
 
