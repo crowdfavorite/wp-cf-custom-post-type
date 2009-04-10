@@ -147,8 +147,9 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 */
 	function cfcpt_is_custom_post($post) {
 		$types = cfcpt_get_types();
+		$post_meta_type = get_post_meta($post->ID,'_post_type',true);
 		if(!is_object($post)) { $post = get_post($post); }
-		return array_key_exists($post->post_type, $types);
+		return (array_key_exists($post->post_type, $types) || array_key_exists($post_meta_type,$types));
 	}
 
 // show appropriate post at head
@@ -744,6 +745,39 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$post_id = wp_insert_post($post);		
 		update_post_meta($post_id,'_post_type',$type);
 	}
+	
+// Filters for exclusion from other plugins
+
+	/**
+	 * Custom filter for CF-Archives to exclude the custom posts from being indexed
+	 *
+	 * @param bool $do_index 
+	 * @param object $post 
+	 * @return bool
+	 */
+	function cfcpt_exclude_cf_archive($do_index,$post) {
+		if(cfcpt_is_custom_post($post)) {
+			$do_index = false;
+		}
+		return $do_index;
+	}
+	add_filter('cfar_do_archive','cfcpt_exclude_cf_archive',9999,2);
+	
+	/**
+	 * Custom filter for CF-Advanced-Search to keep custom posts from being indexed
+	 * The advanced search will interpret $postdata of 'false' to mean 'do not index'
+	 * (mainly because a false postdata array would error out when it tries to do the db insert)
+	 *
+	 * @param array $postdata 
+	 * @return bool
+	 */
+	function cfcpt_exclude_cf_advanced_search($postdata) {
+		if(cfcpt_is_custom_post($postdata['ID'])) {
+			$postdata = false;
+		}		
+		return $postdata;
+	}
+	add_filter('cfs_post_pre_index','cfcpt_exclude_cf_advanced_search',9999);
 	
 // permalink filters so any time a link is built to any of these posts it instead points to the category page
 
