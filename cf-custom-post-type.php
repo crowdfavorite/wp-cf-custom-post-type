@@ -186,7 +186,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * Works off default premise of a 'learn-more' and 'welcome' distinction
 	 * filter on 'cfcpt_get_post' to handle alternate conditions
 	 */
-	function cfcpt_get_post() {
+	function cfcpt_get_post($type=false) {
 		global $wpdb;
 		$category = get_the_category();
 		$cat = $category[0];
@@ -199,11 +199,16 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		);
 		
 		// grab post type per logged in status
-		if(is_user_logged_in()) {
-			$args['post-type'] = 'post-welcome';
+		if(!$type) {
+			if(is_user_logged_in()) {
+				$args['post-type'] = 'post-welcome';
+			}
+			else {
+				$args['post_type'] = 'post-learn-more';
+			}
 		}
 		else {
-			$args['post_type'] = 'post-learn-more';
+			$args['post_type'] = $type;
 		}
 		
 		$p = get_posts(apply_filters('cfcpt_get_post_args',$args));
