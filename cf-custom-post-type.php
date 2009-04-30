@@ -191,23 +191,22 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$category = get_the_category();
 		$cat = $category[0];
 		
+		$args = array(
+			'cat' => $cat->term_id,
+			'post_type' => null,
+			'limit' => 1,
+			'post_status' => array('publish')
+		);
+		
+		// grab post type per logged in status
 		if(is_user_logged_in()) {
-			$p = get_posts(array(
-						'cat' => $cat->term_id,
-						'post_type' => 'post-welcome',
-						'limit' => 1,
-						'post_status' => array('publish')
-					));
+			$args['post-type'] = 'post-welcome';
 		}
 		else {
-			$p = get_posts(array(
-						'cat' => $cat->term_id,
-						'post_type' => 'post-learn-more',
-						'limit' => 1,
-						'post_status' => array('publish')
-					));			
+			$args['post_type'] = 'post-learn-more';
 		}
-
+		
+		$p = get_posts(apply_filters('cfcpt_get_post_args',$args));
 		return apply_filters('cfcpt_get_post',isset($p[0]) ? $p[0] : false);
 	}
 	
@@ -235,9 +234,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		
 		// add category filter, maybe do this a bit differently to accommodate comma separated values?
 		if(!is_null($cat_id)) {
-			if(in_array($cat_id, $cfcpt_parent_cat)) {
-				$args['cat'] = $cat_id;
-			}
+			$args['cat'] = $cat_id;
 		}
 		else {
 			$args['cat'] = implode(',',$cfcpt_parent_cat);
@@ -248,9 +245,9 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		if($type !== false && array_key_exists($type, $types)) {
 			$args['post_type'] = $type;
 		}
-		else {
-			$args['post_type'] = array_keys($types);
-		}
+		// else {
+		// 	$args['post_type'] = array_keys($types);
+		// } -->
 		$posts = get_posts($args);
 		wp_cache_add($key,$posts);
 		return $posts;
@@ -559,13 +556,14 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		// grab the special categories
 		$cats = get_categories(array(
 					'child_of' => $parent_cat->cat_ID,
+					'parent' => $parent_cat->cat_ID,
 					'hide_empty' => false
 				));
 		// prep
 		extract($page_vars);
 		$urlbase = trailingslashit(get_bloginfo('wpurl')).'wp-admin/';
 		$categories_admin = $urlbase.'categories.php';
-			
+		
 		if(current_user_can('manage_categories')) {
 			echo '
 				<br />
@@ -615,11 +613,11 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 				foreach($cfcpt_post_types as $type => $name) {
 					echo '<td>';
 					$post = get_posts(array(
-								'cat' => $cat->term_id,
+								'cat' => $cat->cat_ID,
 								'post_type' => $type,
-								'limit' => 1,
+								'limit' => -1,
 								'post_status' => array('publish','draft')
-							));				
+							));	
 					if(!is_null($post[0])) {
 						echo '
 								<a href="'.$urlbase.'post.php?action=edit&post='.$post[0]->ID.'">'.$post[0]->post_title.'</a>
