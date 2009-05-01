@@ -738,7 +738,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$post = array(
 			'post_content' => 'This is the <b>'.$name.' post</b> in category <b>"'.$category->name.'"</b>. Please change this content.',
 			'post_title' => $category->name.' - '.$name,
-			'post_status' => 'draft',
+			'post_status' => 'publish',
 			'post_name' => $category->name.'-'.$type,
 			'comment_status' => 'closed',
 			'ping_status' => 'closed',
