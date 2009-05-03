@@ -186,10 +186,12 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 * Works off default premise of a 'learn-more' and 'welcome' distinction
 	 * filter on 'cfcpt_get_post' to handle alternate conditions
 	 */
-	function cfcpt_get_post($type=false) {
+	function cfcpt_get_post($type=false,$cat=0) {
 		global $wpdb;
-		$category = get_the_category();
-		$cat = $category[0];
+		if ($cat == 0) {
+			$category = get_the_category();
+			$cat = $category[0];
+		}
 		
 		$args = array(
 			'cat' => $cat->term_id,
@@ -225,36 +227,136 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 */
 	function cfcpt_get_posts($type,$cat_id=null) {
 		global $cfcpt_parent_cat,$blog_id;
+		$posts = '';
+		$args = '';
+		$types = cfcpt_get_types();
 		
-		// attempt to fetch cached item
-		$key = 'cfcpt_posts_'.$type.'_'.$cat_id.'_'.$blog_id;
-		$posts = maybe_unserialize(wp_cache_get($key));
-		if(is_array($posts)) { echo 'cached'; return $posts; }
-		
-		// base args
-		$args = array(
-			'showposts' => -1,
-			'post_status' => array('publish')			
-		);
-		
-		// add category filter, maybe do this a bit differently to accommodate comma separated values?
-		if(!is_null($cat_id)) {
-			$args['cat'] = $cat_id;
+		if (is_array($cat_id) && !empty($cat_id)) {
+			foreach ($cat_id as $cat) {
+				// attempt to fetch cached item
+				$key = 'cfcpt_posts_'.$type.'_'.$cat.'_'.$blog_id;
+				$cache_post = maybe_unserialize(wp_cache_get($key));
+				if (is_array($cache_post)) {
+					$posts[$cat] = $cache_post;
+					continue;
+				}
+
+				$args = array(
+					'showposts' => -1,
+					'post_status' => array('publish'),
+					'cat' => $cat
+				);
+				if ($type !== false && array_key_exists($type, $types)) {
+					$args['post_type'] = $type;
+					$posts[$cat][sanitize_title($type)] = get_posts($args);
+				}
+				else {
+					foreach ($types as $post_type) {
+						$args['post_type'] = 'post-'.sanitize_title($post_type);
+						$posts[$cat]['post-'.sanitize_title($post_type)] = get_posts($args);
+					}
+				}
+				wp_cache_add($key,$posts[$cat]);
+			}
+		}
+		elseif (!is_null($cat_id)) {
+			// attempt to fetch cached item
+			$key = 'cfcpt_posts_'.$type.'_'.$cat_id.'_'.$blog_id;
+			$cache_post = maybe_unserialize(wp_cache_get($key));
+			if (is_array($cache_post)) {
+				$posts[$cat_id] = $cache_post;
+			}
+			else {
+				$args = array(
+					'showposts' => -1,
+					'post_status' => array('publish'),
+					'cat' => $cat_id
+				);
+				if ($type !== false && array_key_exists($type, $types)) {
+					$args['post_type'] = $type;
+					$posts[$cat_id][sanitize_title($type)] = get_posts($args);
+				}
+				else {
+					foreach ($types as $post_type) {
+						$args['post_type'] = 'post-'.sanitize_title($post_type);
+						$posts[$cat_id]['post-'.sanitize_title($post_type)] = get_posts($args);
+					}
+				}
+				wp_cache_add($key,$posts[$cat_id]);
+			}
 		}
 		else {
-			$args['cat'] = implode(',',$cfcpt_parent_cat);
+			// attempt to fetch cached item
+			$key = 'cfcpt_posts_'.$type.'_'.$cat_id.'_'.$blog_id;
+			$posts = maybe_unserialize(wp_cache_get($key));
+			if(is_array($posts)) { return $posts; }
+
+			$cats = implode(',',$cfcpt_parent_cat);
+			// base args
+			$args = array(
+				'showposts' => -1,
+				'post_status' => array('publish'),			
+				'cat' => $cats
+			);
+
+			// add post-type filter
+			$types = cfcpt_get_types();
+			if($type !== false && array_key_exists($type, $types)) {
+				$args['post_type'] = $type;
+			}
+			// else {
+			// 	$args['post_type'] = array_keys($types);
+			// } -->
+			$posts = get_posts($args);
+			wp_cache_add($key,$posts);
+			// // attempt to fetch cached item
+			// $key = 'cfcpt_posts_'.$type.'_'.sanitize_title($cats).'_'.$blog_id;
+			// $cache_post = maybe_unserialize(wp_cache_get($key));
+			// if (is_array($cache_post)) {
+			// 	$posts = $cache_post;
+			// 	continue;
+			// }
+			// 
+			// $args = array(
+			// 	'showposts' => -1,
+			// 	'post_status' => array('publish'),
+			// 	'cat' => $cats
+			// );
+			// if ($type !== false && array_key_exists($type, $types)) {
+			// 	$args['post_type'] = 'post-'.sanitize_title($type);
+			// }
+			// $posts = get_posts($args);
+			// wp_cache_add($key,$posts);
 		}
-		
-		// add post-type filter
-		$types = cfcpt_get_types();
-		if($type !== false && array_key_exists($type, $types)) {
-			$args['post_type'] = $type;
-		}
+		// 
+		// 
+		// // base args
+		// $args = array(
+		// 	'showposts' => -1,
+		// 	'post_status' => array('publish')			
+		// );
+		// 
+		// // add category filter, maybe do this a bit differently to accommodate comma separated values?
+		// if(!is_null($cat_id)) {
+		// 	if (is_array($cat_id)) {
+		// 		
+		// 	}
+		// 	$args['cat'] = $cat_id;
+		// }
 		// else {
-		// 	$args['post_type'] = array_keys($types);
-		// } -->
-		$posts = get_posts($args);
-		wp_cache_add($key,$posts);
+		// 	$args['cat'] = implode(',',$cfcpt_parent_cat);
+		// }
+		// 
+		// // add post-type filter
+		// $types = cfcpt_get_types();
+		// if($type !== false && array_key_exists($type, $types)) {
+		// 	$args['post_type'] = $type;
+		// }
+		// // else {
+		// // 	$args['post_type'] = array_keys($types);
+		// // } -->
+		// $posts = get_posts($args);
+		// wp_cache_add($key,$posts);
 		return $posts;
 	}
 
