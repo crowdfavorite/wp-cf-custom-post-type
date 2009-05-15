@@ -896,6 +896,12 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 */
 	function cfcpt_fix_permalink($permalink,$post,$leavename) {
 		$types = cfcpt_get_types();
+		if(!isset($post->post_type)) {
+			$type = get_post_meta($post->ID,'_post_type',true);
+			if(array_key_exists($type,$types)) {
+				$post->post_type = $type;
+			}
+		}
 		if(isset($post->post_type) && array_key_exists($post->post_type, $types)) {
 			// build permalink for the category page instead
 			$cat = get_the_category($post->ID);
@@ -903,7 +909,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		}
 		return $permalink;
 	}
-	add_filter('post_link','cfcpt_fix_permalink',10,3);
+	add_filter('post_link','cfcpt_fix_permalink',1000,3);
 
 // function to convert old, tagged, posts to new, post-type, posts. Becomes obsolete after OC conversion
 
