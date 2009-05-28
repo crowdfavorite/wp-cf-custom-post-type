@@ -3,7 +3,7 @@
 Plugin Name: CF Custom Category Posts
 Plugin URI: http://crowdfavorite.com
 Description: Attaches custom post type posts to a category for later conditional display of those posts.
-Version: 1
+Version: 1.0
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com
 */
