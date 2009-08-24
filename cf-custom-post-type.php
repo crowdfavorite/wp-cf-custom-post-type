@@ -460,6 +460,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 */
 	function cfcpt_save_custom_post_type($post_id,$post) {
 		global $wpdb;
+		if($post->post_type == 'revision') { return; }
 		if(isset($_POST['cfcpt'])) {
 			$post_type = get_post_meta($post_id,'_post_type',true);
 			cfcpt_update_post($post_id,$post_type);
