@@ -362,7 +362,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 
 // Modify post_type for editing
 
-	add_action('admin_init','cfcpt_admin_init');
+	add_action('admin_menu','cfcpt_admin_init');
 
 	/**
 	 * Admin init
