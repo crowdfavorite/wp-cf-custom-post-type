@@ -362,7 +362,8 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 
 // Modify post_type for editing
 
-	add_action('admin_menu','cfcpt_admin_init');
+	add_action('admin_init','cfcpt_admin_init');
+	add_action('admin_menu','cfcpt_admin_menu');
 
 	/**
 	 * Admin init
@@ -371,7 +372,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 *	- add handler to post edit so custom post types can be edited
 	 */
 	function cfcpt_admin_init() {
-		global $cfcpt_post_types, $cfcpt_parent_cat, $post, $pagenow, $page_vars;
+		global $cfcpt_post_types, $cfcpt_parent_cat, $post, $pagenow;
 		
 		// post handler for adding cats and editing parent selection
 		if(strtolower($_SERVER['REQUEST_METHOD']) == 'post' && isset($_POST['cfcpt_action'])) {
@@ -384,18 +385,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 					break;
 			}
 		}
-		
-		// set filter configurable page text items
-		$page_vars = apply_filters('cfcpt_admin_page_vars',array(
-			'page_name' => $page_name,
-			'page_description' => '<p>This is the admin page for adding special categories with hidden informational posts.</p>',
-			'new_category_link' => 'Add new special category',
-			'new_category_name_label' => 'Name:',
-			'new_category_description_label' => 'Description',
-			'category_table_header' => 'Category'
-		));
-		
-		add_submenu_page('edit.php',$page_vars['page_name'],$page_vars['page_name'],'10','cf-custom-posts','cfcpt_list_page');
+
 		wp_enqueue_script('jquery');
 		
 		// only worry about the rest when editing posts
@@ -412,7 +402,23 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			add_action('admin_head','cfcpt_clear_meta_boxes',9999);
 		}
 	}
-	
+
+	function cfcpt_admin_menu() {
+		global $page_vars;
+		
+		// set filter configurable page text items
+		$page_vars = apply_filters('cfcpt_admin_page_vars',array(
+			'page_name' => $page_name,
+			'page_description' => '<p>This is the admin page for adding special categories with hidden informational posts.</p>',
+			'new_category_link' => 'Add new special category',
+			'new_category_name_label' => 'Name:',
+			'new_category_description_label' => 'Description',
+			'category_table_header' => 'Category'
+		));
+		
+		add_submenu_page('edit.php',$page_vars['page_name'],$page_vars['page_name'],'10','cf-custom-posts','cfcpt_list_page');
+	}
+
 // Clear out post edit screen of un-needed items
 
 	/**
