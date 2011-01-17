@@ -3,7 +3,7 @@
 Plugin Name: CF Custom Category Posts
 Plugin URI: http://crowdfavorite.com
 Description: Attaches custom post type posts to a category for later conditional display of those posts.
-Version: 1.0
+Version: 1.1
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com
 */
@@ -31,7 +31,8 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 
 // Init/Setup
 
-	add_action('init','cfcpt_init',1);
+	add_action('init', 'cfcpt_init', 1);
+	add_action('init', 'cfcpt_register_post_types');
 	
 	/**
 	 * Define our variables
@@ -66,6 +67,28 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		// handle conversion of old post type structure
 		if(current_user_can('edit_users') && isset($_GET['convert_old_posts'])) {
 			cfcpt_convert_old_posts();
+		}
+	}
+	
+	function cfcpt_register_post_types() {
+		global $cfcpt_post_types;
+		if (is_array($cfcpt_post_types) && !empty($cfcpt_post_types)) {
+			foreach ($cfcpt_post_types as $type => $name) {
+				register_post_type(
+					$type, 
+					array(
+						'labels' => array(
+							'name' => _x($name, 'post type general name')
+						),
+						'public' => true,
+						'show_ui' => true,
+						'show_in_menu' => true,
+						'capability_type' => 'post',
+						'supports' => array('title', 'editor', 'author', 'excerpt')
+					)
+				);
+				register_taxonomy_for_object_type('category', $type);
+			}
 		}
 	}
 	
@@ -197,7 +220,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			'cat' => $cat->term_id,
 			'post_type' => null,
 			'limit' => 1,
-			'post_status' => array('publish')
+			'post_status' => 'publish'
 		);
 		
 		// grab post type per logged in status
@@ -243,7 +266,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 
 				$args = array(
 					'showposts' => -1,
-					'post_status' => array('publish'),
+					'post_status' => 'publish',
 					'cat' => $cat
 				);
 				if ($type !== false && array_key_exists($type, $types)) {
@@ -269,7 +292,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			else {
 				$args = array(
 					'showposts' => -1,
-					'post_status' => array('publish'),
+					'post_status' => 'publish',
 					'cat' => $cat_id
 				);
 				if ($type !== false && array_key_exists($type, $types)) {
@@ -295,7 +318,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			// base args
 			$args = array(
 				'showposts' => -1,
-				'post_status' => array('publish'),			
+				'post_status' => 'publish',			
 				'cat' => $cats
 			);
 
@@ -319,7 +342,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			// 
 			// $args = array(
 			// 	'showposts' => -1,
-			// 	'post_status' => array('publish'),
+			// 	'post_status' => 'publish',
 			// 	'cat' => $cats
 			// );
 			// if ($type !== false && array_key_exists($type, $types)) {
@@ -333,7 +356,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		// // base args
 		// $args = array(
 		// 	'showposts' => -1,
-		// 	'post_status' => array('publish')			
+		// 	'post_status' => 'publish'
 		// );
 		// 
 		// // add category filter, maybe do this a bit differently to accommodate comma separated values?
@@ -363,6 +386,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 // Modify post_type for editing
 
 	add_action('admin_init','cfcpt_admin_init');
+	add_action('admin_menu','cfcpt_admin_menu');
 
 	/**
 	 * Admin init
@@ -371,7 +395,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 *	- add handler to post edit so custom post types can be edited
 	 */
 	function cfcpt_admin_init() {
-		global $cfcpt_post_types, $cfcpt_parent_cat, $post, $pagenow, $page_vars;
+		global $cfcpt_post_types, $cfcpt_parent_cat, $post, $pagenow;
 		
 		// post handler for adding cats and editing parent selection
 		if(strtolower($_SERVER['REQUEST_METHOD']) == 'post' && isset($_POST['cfcpt_action'])) {
@@ -384,6 +408,26 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 					break;
 			}
 		}
+
+		wp_enqueue_script('jquery');
+		
+		// only worry about the rest when editing posts
+		if($pagenow != 'post.php' || !isset($_GET['post'])) { return; }
+		
+		$post = get_post($_GET['post']);
+		if(array_key_exists($post->post_type, $cfcpt_post_types)) {
+			// make sure we have a placeholder post_type
+			update_post_meta($post->ID,'_post_type',$post->post_type);
+			// update for editing
+			// $post->post_type = 'post';
+			// wp_cache_replace($post->ID,$post,'posts');
+			add_action('edit_form_advanced','cfcpt_meta_box');
+			add_action('admin_head','cfcpt_clear_meta_boxes',9999);
+		}
+	}
+
+	function cfcpt_admin_menu() {
+		global $page_vars;
 		
 		// set filter configurable page text items
 		$page_vars = apply_filters('cfcpt_admin_page_vars',array(
@@ -396,22 +440,50 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		));
 		
 		add_submenu_page('edit.php',$page_vars['page_name'],$page_vars['page_name'],'10','cf-custom-posts','cfcpt_list_page');
-		wp_enqueue_script('jquery');
+	}
+	
+	function cfcpt_admin_footer() {
+		?>
+		<script type="text/javascript">
+			;(function($) {
+				<?php
+				global $post;
+				$post_type = get_post_type($post);
+				if ($post_type == 'post-welcome' || $post_type == 'post-learn-more') {
+					?>
+					$('a[href="edit.php?page=cf-custom-posts"]').attr('class', 'current').parent().attr('class', 'current');
+					<?php
+				}
+				?>
+			})(jQuery);
+		</script>
+		<?php
+	}
+	add_action('admin_footer', 'cfcpt_admin_footer');
+	
+	
+	function cfcpt_menu_remove() {
+		global $menu, $submenu;
+		$keys = array();
+		if (is_array($menu) && !empty($menu)) {
+			foreach ($menu as $key => $data) {
+				if ($data[0] == 'Welcome' || $data[0] == 'Learn More') {
+					$keys[] = $key;
+				}
+			}
+		}
 		
-		// only worry about the rest when editing posts
-		if($pagenow != 'post.php' || !isset($_GET['post'])) { return; }
-		
-		$post = get_post($_GET['post']);
-		if(array_key_exists($post->post_type, $cfcpt_post_types)) {
-			// make sure we have a placeholder post_type
-			update_post_meta($post->ID,'_post_type',$post->post_type);
-			// update for editing
-			$post->post_type = 'post';
-			wp_cache_replace($post->ID,$post,'posts');
-			add_action('edit_form_advanced','cfcpt_meta_box');
-			add_action('admin_head','cfcpt_clear_meta_boxes',9999);
+		if (is_array($keys) && !empty($keys)) {
+			foreach ($keys as $key) {
+				unset($menu[$key]);
+			}
+			
+			unset($submenu['edit.php?post_type=post-welcome']);
+			unset($submenu['edit.php?post_type=post-learn-more']);
 		}
 	}
+	add_action('_admin_menu', 'cfcpt_menu_remove', 999);
+	
 	
 // Clear out post edit screen of un-needed items
 
@@ -427,11 +499,21 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			'postexcerpt',
 			'revisionsdiv'
 		));
-		foreach($wp_meta_boxes['post'] as $group_id => $group) {
+
+		foreach($wp_meta_boxes['post-welcome'] as $group_id => $group) {
 			foreach($group as $priority_id => $priority) {				
 				foreach($priority as $id => $box) {
 					if(!in_array($id, $allowed_boxes)) {
-						unset($wp_meta_boxes['post'][$group_id][$priority_id][$id]);
+						unset($wp_meta_boxes['post-welcome'][$group_id][$priority_id][$id]);
+					}
+				}
+			}
+		}
+		foreach($wp_meta_boxes['post-learn-more'] as $group_id => $group) {
+			foreach($group as $priority_id => $priority) {				
+				foreach($priority as $id => $box) {
+					if(!in_array($id, $allowed_boxes)) {
+						unset($wp_meta_boxes['post-learn-more'][$group_id][$priority_id][$id]);
 					}
 				}
 			}
@@ -460,10 +542,11 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 	 */
 	function cfcpt_save_custom_post_type($post_id,$post) {
 		global $wpdb;
-		if(isset($_POST['cfcpt'])) {
-			$post_type = get_post_meta($post_id,'_post_type',true);
-			cfcpt_update_post($post_id,$post_type);
-		}
+		if($post->post_type == 'revision') { return; }
+		// if(isset($_POST['cfcpt'])) {
+		// 	$post_type = get_post_meta($post_id,'_post_type',true);
+		// 	cfcpt_update_post($post_id,$post_type);
+		// }
 	}
 	
 	/**
@@ -723,7 +806,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 								'cat' => $cat->cat_ID,
 								'post_type' => $type,
 								'limit' => -1,
-								'post_status' => array('publish','draft')
+								'post_status' => 'publish,draft'
 							));	
 					if(!is_null($post[0])) {
 						echo '
@@ -841,14 +924,14 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			'post_content' => 'This is the <b>'.$name.' post</b> in category <b>"'.$category->name.'"</b>. Please change this content.',
 			'post_title' => $category->name.' - '.$name,
 			'post_status' => 'publish',
-			'post_name' => $category->name.'-'.$type,
+			'post_name' => sanitize_title($category->slug.'-'.$type),
 			'comment_status' => 'closed',
 			'ping_status' => 'closed',
-			'post_type' => $type,
-			'post_category' => array($category->cat_ID)
+			'post_type' => $type
 		);
 		$post_id = wp_insert_post($post);		
 		update_post_meta($post_id,'_post_type',$type);
+		wp_set_post_categories($post_id, array($category->cat_ID));
 	}
 	
 // Filters for exclusion from other plugins
@@ -934,4 +1017,5 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 			cfcpt_update_post($p->ID,'post-welcome');
 		}
 	}
+
 ?>
