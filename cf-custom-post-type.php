@@ -3,7 +3,7 @@
 Plugin Name: CF Custom Category Posts
 Plugin URI: http://crowdfavorite.com
 Description: Attaches custom post type posts to a category for later conditional display of those posts.
-Version: 1.1.1
+Version: 1.1.2
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com
 */
@@ -797,7 +797,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 				echo '
 							<tr>
 								<td id="cat-'.$cat->term_id.'"><b><a href="'.
-								$categories_admin.'?action=edit&tag_ID='.$cat->cat_ID.'">'.$cat->name.'</a></b></td>
+								$categories_admin.'&action=edit&tag_ID='.$cat->cat_ID.'">'.$cat->name.'</a></b></td>
 								';	
 				// link to each custom post					
 				foreach($cfcpt_post_types as $type => $name) {
