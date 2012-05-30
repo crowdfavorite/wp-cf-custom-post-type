@@ -172,6 +172,7 @@ are all managed from a new menu item in the Posts section of the Admin menu name
 		$types = cfcpt_get_types();
 		$post_meta_type = get_post_meta($post->ID,'_post_type',true);
 		if(!is_object($post)) { $post = get_post($post); }
+		if(!is_string($post_meta_type)) { $post_meta_type = ""; }
 		return (array_key_exists($post->post_type, $types) || array_key_exists($post_meta_type,$types));
 	}
 
